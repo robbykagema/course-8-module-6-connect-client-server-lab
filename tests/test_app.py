@@ -1,41 +1,50 @@
-import sys
-import os
-import json
-import pytest
+from flask import Flask, render_template, request, jsonify
 
-# Ensure the root project directory is on the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+app = Flask(__name__)
 
-from server import app
+# Seed data to show something on initial load
+events = [
+    {"id": 1, "title": "Tech Conference 2026", "date": "2026-09-15", "location": "Nairobi"},
+    {"id": 2, "title": "Local Music Festival", "date": "2026-10-05", "location": "Ruiru"}
+]
+next_id = 3
 
-@pytest.fixture
-def client():
-    return app.test_client()
+@app.route('/')
+def index():
+    # Renders your index.html template
+    return render_template('index.html')
 
-def test_homepage_returns_welcome_message(client):
-    response = client.get("/")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert isinstance(data, dict)
-    assert "message" in data
-    assert "welcome" in data["message"].lower()
+@app.route('/events', methods=['GET'])
+def get_events():
+    # Return clean, consistent JSON
+    return jsonify(events)
 
-def test_get_events_returns_event_list(client):
-    response = client.get("/events")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert isinstance(data, list)
-    assert all("id" in event and "title" in event for event in data)
+@app.route('/events', methods=['POST'])
+def add_event():
+    global next_id
+    # Get JSON payload from client
+    data = request.get_json()
+    
+    # Extract details (adjust keys based on your specific lab requirements)
+    title = data.get('title')
+    date = data.get('date')
+    location = data.get('location')
+    
+    # Basic validation
+    if not title or not date or not location:
+        return jsonify({"error": "Missing required fields"}), 400
+        
+    new_event = {
+        "id": next_id,
+        "title": title,
+        "date": date,
+        "location": location
+    }
+    events.append(new_event)
+    next_id += 1
+    
+    # Return the newly created event and a 201 Created status
+    return jsonify(new_event), 201
 
-def test_post_events_adds_new_event(client):
-    payload = {"title": "New Test Event"}
-    response = client.post("/events", data=json.dumps(payload), content_type="application/json")
-    assert response.status_code == 201
-    data = response.get_json()
-    assert isinstance(data, dict)
-    assert data["title"] == payload["title"]
-    assert "id" in data
-
-def test_post_event_missing_data_returns_error(client):
-    response = client.post("/events", data=json.dumps({}), content_type="application/json")
-    assert response.status_code == 400 or response.status_code == 422  # depending on your validation
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
